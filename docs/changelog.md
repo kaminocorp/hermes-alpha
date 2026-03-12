@@ -2,6 +2,7 @@
 
 ## Index
 
+- [2.0.0 — Dead Code Removal & Repo Rename](#200--dead-code-removal--repo-rename)
 - [1.0.0 — Hermes Agent Gateway](#100--hermes-agent-gateway)
 - [0.4.1 — Agent Timeout Guard](#041--agent-timeout-guard)
 - [0.4.0 — Frontend Overhaul](#040--frontend-overhaul)
@@ -11,6 +12,29 @@
 - [0.2.1 — Fly.io Deployment Fix](#021--flyio-deployment-fix)
 - [0.2.0 — Hermes Agent Integration](#020--hermes-agent-integration)
 - [0.1.0 — Project Scaffolding](#010--project-scaffolding)
+
+---
+
+## 2.0.0 — Dead Code Removal & Repo Rename
+
+**2026-03-12**
+
+The gateway app (1.0.0) fully replaced the custom web terminal as the sole deployed app on Fly.io. The custom frontend, FastAPI server, and root deployment config were never deployed again after the gateway went live — making them dead code. This release removes all of it and renames the repository from `hermes` to `hermes-alpha`.
+
+### Removed
+
+- **`frontend/`** — the entire custom Evangelion-themed web UI: 7 ES modules (`js/`), 9 CSS files (`css/`), `index.html`, and `style.css`. Superseded by the stock Hermes CLI rendered via xterm.js in `gateway/`.
+- **`server/`** — the custom FastAPI WebSocket server (`main.py`, `requirements.txt`) that wrapped `AIAgent.run_conversation()` with multi-provider routing, model switching, conversation history, and timeout handling. Superseded by the gateway's PTY bridge which runs the stock CLI directly.
+- **Root `Dockerfile`** — built the custom frontend app image. The gateway has its own Dockerfile at `gateway/Dockerfile`.
+- **Root `fly.toml`** — deployed the custom frontend app. The gateway has its own at `gateway/fly.toml`.
+- **Root `docker-compose.yml`** — ran the custom frontend locally. The gateway has its own at `gateway/docker-compose.yml`.
+
+### Changed
+
+- **Repository renamed** — `hejijunhao/hermes` → `hejijunhao/hermes-alpha`. GitHub redirects from the old URL remain active.
+- **`Makefile`** — removed stale targets (`dev`, old `deploy`, old `up`/`down`) that referenced deleted files. Promoted gateway targets to top-level: `make deploy` now runs `cd gateway && fly deploy`, `make up`/`down` use `gateway/docker-compose.yml`, etc. The `gateway-` prefix is no longer needed.
+- **`.claude/CLAUDE.md`** — rewritten to describe the current architecture (PTY bridge, xterm.js, stock CLI) instead of the removed custom frontend and server.
+- **`.dockerignore`** — removed references to deleted root-level files.
 
 ---
 
