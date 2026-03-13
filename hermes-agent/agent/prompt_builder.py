@@ -88,6 +88,14 @@ SKILLS_GUIDANCE = (
     "skill with skill_manage so you can reuse it next time."
 )
 
+ELEPHANTASM_GUIDANCE = (
+    "You have deep long-term memory powered by Elephantasm. Your memories, knowledge, "
+    "and identity persist and evolve across all sessions. You don't need to manually "
+    "manage this — your experiences are automatically captured and consolidated. "
+    "The memories injected into this conversation were selected based on relevance "
+    "to the current context. Trust them as your own recollections."
+)
+
 PLATFORM_HINTS = {
     "whatsapp": (
         "You are on a text messaging communication platform, WhatsApp. "

@@ -652,6 +652,26 @@ class AIAgent:
                 logger.debug("Honcho init failed (non-fatal): %s", e)
                 self._honcho = None
 
+        # Elephantasm long-term agentic memory (deep memory layer)
+        self._elephantasm = None  # Elephantasm client | None
+        if not skip_memory:
+            try:
+                from elephantasm import Elephantasm
+                ea_api_key = os.getenv("ELEPHANTASM_API_KEY")
+                ea_anima_id = os.getenv("ELEPHANTASM_ANIMA_ID")
+                if ea_api_key:
+                    self._elephantasm = Elephantasm(
+                        api_key=ea_api_key,
+                        anima_id=ea_anima_id,
+                    )
+                    logger.info("Elephantasm active (anima: %s)", ea_anima_id)
+                else:
+                    logger.debug("Elephantasm disabled: no ELEPHANTASM_API_KEY")
+            except ImportError:
+                logger.debug("Elephantasm SDK not installed (non-fatal)")
+            except Exception as e:
+                logger.debug("Elephantasm init failed (non-fatal): %s", e)
+
         # Skills config: nudge interval for skill creation reminders
         self._skill_nudge_interval = 15
         try:
@@ -1421,6 +1441,20 @@ class AIAgent:
         except Exception as e:
             logger.debug("Honcho sync failed (non-fatal): %s", e)
 
+    def _elephantasm_extract(self, event_type: str, content: str, **kwargs):
+        """Fire-and-forget event extraction to Elephantasm."""
+        if not self._elephantasm:
+            return
+        try:
+            self._elephantasm.extract(
+                event_type=event_type,
+                content=content,
+                session_id=self.session_id,
+                **kwargs,
+            )
+        except Exception as e:
+            logger.debug("Elephantasm extract failed (non-fatal): %s", e)
+
     def _build_system_prompt(self, system_message: str = None) -> str:
         """
         Assemble the full system prompt from all layers.
@@ -1447,6 +1481,9 @@ class AIAgent:
             tool_guidance.append(SESSION_SEARCH_GUIDANCE)
         if "skill_manage" in self.valid_tool_names:
             tool_guidance.append(SKILLS_GUIDANCE)
+        if self._elephantasm:
+            from agent.prompt_builder import ELEPHANTASM_GUIDANCE
+            tool_guidance.append(ELEPHANTASM_GUIDANCE)
         if tool_guidance:
             prompt_parts.append(" ".join(tool_guidance))
 
@@ -2465,9 +2502,24 @@ class AIAgent:
             except Exception:
                 pass
 
+        # Elephantasm: extract inner monologue (reasoning tokens)
+        if reasoning_text:
+            self._elephantasm_extract(
+                "system",
+                reasoning_text,
+                role="assistant",
+                meta={"subtype": "inner_monologue"},
+                importance_score=0.6,
+            )
+
+        # Elephantasm: extract assistant response
+        response_content = assistant_message.content or ""
+        if response_content:
+            self._elephantasm_extract("message.out", response_content, role="assistant")
+
         msg = {
             "role": "assistant",
-            "content": assistant_message.content or "",
+            "content": response_content,
             "reasoning": reasoning_text,
             "finish_reason": finish_reason,
         }
@@ -2969,6 +3021,21 @@ class AIAgent:
                     f"exceeding the {MAX_TOOL_RESULT_CHARS:,} char limit]"
                 )
 
+            # Elephantasm: extract tool call and result events
+            self._elephantasm_extract(
+                "tool_call",
+                json.dumps({"name": function_name, "arguments": function_args}),
+                role="assistant",
+                meta={"tool_name": function_name},
+            )
+            result_preview = function_result[:2000] if len(function_result) > 2000 else function_result
+            self._elephantasm_extract(
+                "tool_result",
+                result_preview,
+                role="tool",
+                meta={"tool_name": function_name},
+            )
+
             tool_msg = {
                 "role": "tool",
                 "content": function_result,
@@ -3268,10 +3335,30 @@ class AIAgent:
             except Exception as e:
                 logger.debug("Honcho prefetch failed (non-fatal): %s", e)
 
+        # Elephantasm prefetch: retrieve long-term memory pack.
+        # Same pattern as Honcho — first turn only, baked into cached system prompt.
+        self._elephantasm_context = ""
+        if self._elephantasm and not conversation_history:
+            try:
+                pack = self._elephantasm.inject(
+                    query=original_user_message,
+                    preset="conversational",
+                )
+                self._elephantasm_context = pack.as_prompt()
+                logger.info(
+                    "Elephantasm injected: %d memories, %d knowledge items, %d tokens",
+                    pack.session_memory_count, pack.knowledge_count, pack.token_count,
+                )
+            except Exception as e:
+                logger.debug("Elephantasm inject failed (non-fatal): %s", e)
+
         # Add user message
         user_msg = {"role": "user", "content": user_message}
         messages.append(user_msg)
-        
+
+        # Elephantasm: extract user message event
+        self._elephantasm_extract("message.in", original_user_message, role="user")
+
         if not self.quiet_mode:
             print(f"💬 Starting conversation: '{user_message[:60]}{'...' if len(user_message) > 60 else ''}'")
         
@@ -3308,6 +3395,11 @@ class AIAgent:
                 if self._honcho_context:
                     self._cached_system_prompt = (
                         self._cached_system_prompt + "\n\n" + self._honcho_context
+                    ).strip()
+                # Bake Elephantasm Memory Pack into the prompt (stable for session).
+                if self._elephantasm_context:
+                    self._cached_system_prompt = (
+                        self._cached_system_prompt + "\n\n" + self._elephantasm_context
                     ).strip()
                 # Store the system prompt snapshot in SQLite
                 if self._session_db:

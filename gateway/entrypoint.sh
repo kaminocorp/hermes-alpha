@@ -19,5 +19,7 @@ write_if_set ANTHROPIC_API_KEY
 write_if_set OPENAI_API_KEY
 write_if_set FIRECRAWL_API_KEY
 write_if_set FAL_KEY
+write_if_set ELEPHANTASM_API_KEY
+write_if_set ELEPHANTASM_ANIMA_ID
 
 exec uvicorn app:app --host 0.0.0.0 --port 8080 --app-dir /app

@@ -2,6 +2,7 @@
 
 ## Index
 
+- [3.0.0 — Elephantasm Integration](#300--elephantasm-integration)
 - [2.1.0 — Vendored Agent Source](#210--vendored-agent-source)
 - [2.0.0 — Dead Code Removal & Repo Rename](#200--dead-code-removal--repo-rename)
 - [1.0.0 — Hermes Agent Gateway](#100--hermes-agent-gateway)
@@ -13,6 +14,43 @@
 - [0.2.1 — Fly.io Deployment Fix](#021--flyio-deployment-fix)
 - [0.2.0 — Hermes Agent Integration](#020--hermes-agent-integration)
 - [0.1.0 — Project Scaffolding](#010--project-scaffolding)
+
+---
+
+## 3.0.0 — Elephantasm Integration
+
+**2026-03-13**
+
+Integrated [Elephantasm](https://elephantasm.com) — a long-term agentic memory (LTAM) framework — as the third memory layer in the Hermes agent. The agent now has a three-layer memory architecture: MEMORY.md (scratchpad), Honcho (user model), and Elephantasm (deep memory). Elephantasm gives the agent persistent, evolving memory that survives across sessions, with automatic synthesis via a server-side "Dreamer" process and intelligent token-budgeted retrieval. See [`elephantasm-integration.md`](elephantasm-integration.md) for the original plan and [`elephantasm-integration-completion.md`](elephantasm-integration-completion.md) for the full implementation record.
+
+### Added
+
+- **Elephantasm client initialization** (`hermes-agent/run_agent.py`) — optional, non-fatal setup in `AIAgent.__init__()` gated by `ELEPHANTASM_API_KEY` and `ELEPHANTASM_ANIMA_ID` environment variables. Follows the same pattern as Honcho: lazy import, `ImportError` caught silently, agent functions identically without it.
+- **Memory Pack injection** (`hermes-agent/run_agent.py`) — on first turn of each session, retrieves a semantically relevant Memory Pack via `elephantasm.inject(query=..., preset="conversational")` and bakes it into the cached system prompt. Frozen for the session to preserve Anthropic prefix cache stability.
+- **Fire-and-forget event extraction** (`hermes-agent/run_agent.py`) — new `_elephantasm_extract()` helper captures all five Elephantasm event types throughout the agent loop:
+  - `message.in` — user messages (using original input, not nudge-injected version)
+  - `message.out` — assistant responses
+  - `system` — reasoning tokens / inner monologue (from DeepSeek, Qwen, Claude extended thinking, or `<think>` blocks), tagged with `importance_score=0.6`
+  - `tool_call` — tool name + arguments as JSON
+  - `tool_result` — tool output, truncated to 2,000 chars
+- **`ELEPHANTASM_GUIDANCE`** (`hermes-agent/agent/prompt_builder.py`) — system prompt constant injected when Elephantasm is active, informing the agent it has deep long-term memory and should trust injected memories as its own recollections.
+- **`elephantasm` optional dependency** (`hermes-agent/pyproject.toml`) — added under `[project.optional-dependencies]` and included in the `[all]` extras group.
+- **Environment variable documentation** (`.env.example`) — `ELEPHANTASM_API_KEY` and `ELEPHANTASM_ANIMA_ID` with commented-out examples.
+- **Gateway secret injection** (`gateway/entrypoint.sh`) — `ELEPHANTASM_API_KEY` and `ELEPHANTASM_ANIMA_ID` forwarded from Fly.io secrets into the hermes `.env` file at container boot.
+
+### Architecture
+
+The integration follows a three-phase cycle: **Extract → Synthesize → Inject**. Extraction is fire-and-forget (per-event, not batched) for simplicity, accurate timestamps, and crash resilience. Synthesis is fully server-side via Elephantasm's Dreamer — no agent code needed. Injection happens once per session at system prompt build time, identical to the Honcho pattern.
+
+Inner monologue capture is the key differentiator: most memory systems only see final output, but by extracting reasoning tokens, Elephantasm gets insight into *how* the agent thinks, enabling richer synthesis into memories and knowledge.
+
+The three memory systems are complementary — each answers a different question:
+
+| Layer | System | Question |
+|---|---|---|
+| Scratchpad | MEMORY.md / USER.md | "What do I want to remember right now?" |
+| User Model | Honcho | "Who is this person I'm talking to?" |
+| Deep Memory | Elephantasm | "What have I experienced, learned, and become?" |
 
 ---
 

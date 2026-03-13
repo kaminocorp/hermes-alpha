@@ -1,6 +1,6 @@
 # Hermes Agent — vendored CLI served via web terminal
 # Deploy: fly deploy --config gateway/fly.toml (from repo root)
-app = 'hermes-terminal'
+app = 'hermes-alpha'
 primary_region = 'sin'
 
 [build]
