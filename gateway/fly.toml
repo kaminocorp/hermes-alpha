@@ -13,6 +13,10 @@ primary_region = 'sin'
   auto_start_machines = true
   min_machines_running = 1
 
+[mounts]
+  source = "hermes_data"
+  destination = "/root/.hermes"
+
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '1024mb'
