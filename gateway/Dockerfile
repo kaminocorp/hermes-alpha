@@ -25,8 +25,8 @@ RUN mkdir -p /root/.hermes/{sessions,logs,memories,skills,hooks,cron,image_cache
 RUN cp /opt/hermes-agent/.env.example /root/.hermes/.env \
     && cp /opt/hermes-agent/cli-config.yaml.example /root/.hermes/config.yaml 2>/dev/null; true
 
-# Inject a minimal SOUL.md
-RUN echo "You are Hermes, an AI assistant by Nous Research." > /root/.hermes/SOUL.md
+# Inject the Overseer identity
+COPY gateway/soul.md /root/.hermes/SOUL.md
 
 # Copy our web app
 COPY gateway/app.py /app/app.py

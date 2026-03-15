@@ -2,6 +2,7 @@
 
 ## Index
 
+- [4.0.0 — Overseer Identity & Blank-Slate Bootstrap](#400--overseer-identity--blank-slate-bootstrap)
 - [3.2.1 — Alpha Branding](#321--alpha-branding)
 - [3.2.0 — Hunter Access: GitHub + Fly.io Credentials](#320--hunter-access-github--flyio-credentials)
 - [3.1.0 — Elephantasm Inject Fix & Always-On Machine](#310--elephantasm-inject-fix--always-on-machine)
@@ -21,6 +22,43 @@
 - [0.2.1 — Fly.io Deployment Fix](#021--flyio-deployment-fix)
 - [0.2.0 — Hermes Agent Integration](#020--hermes-agent-integration)
 - [0.1.0 — Project Scaffolding](#010--project-scaffolding)
+
+---
+
+## 4.0.0 — Overseer Identity & Blank-Slate Bootstrap
+
+**2026-03-15**
+
+The Alpha agent (Path B of the A/B experiment) is now a fully identity-aware Overseer that bootstraps its own infrastructure from scratch. The only modifications over a stock Hermes agent are Elephantasm long-term memory (3.0.0) and a SOUL.md that gives it purpose. No pre-configured credentials, no pre-wired access — the agent asks the Creator for whatever it needs via the terminal.
+
+This is a **breaking change** from 3.2.0, which pre-wired GitHub and Fly.io credentials into the container. That approach is replaced by the blank-slate philosophy: give the agent tools (git, flyctl) but no keys. The agent discovers what it needs and asks the human to provide it.
+
+### Added
+
+- **`gateway/soul.md`** — the Overseer's identity document, baked into the container as `~/.hermes/SOUL.md`. Defines the agent's mission (build and improve the Hunter), hierarchy (Creator → Overseer → Hunter), available tools, Elephantasm memory, guardrails, and bootstrap sequence. ~85 lines — deliberately lean to minimise per-call token cost.
+
+### Changed
+
+- **`gateway/Dockerfile`** — SOUL.md injection changed from a one-line `echo` ("You are Hermes, an AI assistant by Nous Research.") to `COPY gateway/soul.md /root/.hermes/SOUL.md`. The `flyctl` CLI remains installed as a tool, but no credentials are pre-configured.
+- **`gateway/static/terminal.html`** — header changed from `HERMES // AGENT` to `HERMES // ALPHA`. "ALPHA" styled in blue accent (`--blue`, `#00b4d8`) with matching glow, contrasting with the red HERMES logo. Page title updated to match.
+
+### Removed
+
+- **`gateway/entrypoint.sh`** — removed all Hunter credential wiring added in 3.2.0: `GITHUB_TOKEN` git credential setup, `HUNTER_REPO` and `HUNTER_FLY_APP` env var forwarding. The agent starts with no external access.
+- **`.env.example`** — removed `GITHUB_TOKEN`, `FLY_API_TOKEN`, `HUNTER_REPO`, and `HUNTER_FLY_APP` documentation. These are no longer part of the deployment.
+
+### Architecture
+
+The blank-slate design is the defining choice of Path B (Alpha). Instead of pre-building infrastructure for the agent (Path A / Prime), the agent is given only:
+
+| What | How |
+|---|---|
+| **Identity and mission** | SOUL.md — who you are, what you're building, guardrails |
+| **Long-term memory** | Elephantasm — the only code modification over stock Hermes |
+| **CLI tools** | git, flyctl, python, node, curl — pre-installed but unconfigured |
+| **The Creator** | A human in the terminal who provides access on request |
+
+Everything else — GitHub access, Fly.io apps, deployment tokens, the Hunter's entire codebase — the agent bootstraps through conversation with the Creator.
 
 ---
 
